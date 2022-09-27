@@ -1,14 +1,26 @@
 package nephrodata
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os/exec"
 	"strings"
 	"sync"
 )
 
+type ApiVersionResponse struct {
+	Version string
+}
+
+type ApiVersionInfo struct {
+	Online  bool
+	Version string
+}
+
 type NephroData struct {
-	ApiStatus     bool
+	ApiStatus     ApiVersionInfo
 	ManagerStatus bool
 }
 
@@ -16,11 +28,11 @@ func GetNephroData() *NephroData {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	apiStatus, managerStatus := false, false
+	apiStatus, managerStatus := ApiVersionInfo{Online: false, Version: ""}, false
 
 	go func() {
 		defer wg.Done()
-		apiStatus = isPortOpen("3000")
+		apiStatus = fetchApiVersionInfo()
 	}()
 	go func() {
 		defer wg.Done()
@@ -35,14 +47,25 @@ func GetNephroData() *NephroData {
 	}
 }
 
+func fetchApiVersionInfo() ApiVersionInfo {
+	resp, err := http.Get("http://localhost:3000/api/version_info")
+	if err != nil {
+		return ApiVersionInfo{Version: "", Online: false}
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	var data ApiVersionResponse
+	json.Unmarshal(body, &data)
+
+	return ApiVersionInfo{Version: data.Version, Online: true}
+}
 func isPortOpen(port string) bool {
 	nValue, err := exec.Command("lsof", "-i", "-P", "-n").Output()
 
 	if err != nil {
 		fmt.Printf("error %s", err)
 	}
-	
 
 	result := strings.TrimSuffix(string(nValue), "\n")
-	return strings.Contains(result, port + " (LISTEN)")
+	return strings.Contains(result, port+" (LISTEN)")
 }

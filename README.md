@@ -6,13 +6,13 @@ Add NephroFlow API and Manager status in system tray.
 
 ## State
 
-- API: check for open port 3000 (LISTEN)
+- API: curl `http://localhost:3000/api/version_info`
 - Manager: check for open port 8080 (LISTEN)
 
 ## Actions
 
 - Start API: `tmux send-keys -t nipro:api.1 "run_api.sh -- rails s\n"`
-- Stop API: `docker stop selfweb`
+- Stop API: `docker ps | grep nephroflow/server | awk '{print $1}' | xargs -r docker stop`
 - Stop Manager: `tmux send-keys -t nipro:manager.1 "C-c"`
 - Start Manager: `tmux send-keys -t nipro:manager.1 yarn dev C-m`
 - Open Manager

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"time"
 
 	"nephrostatus/nephrodata"
 
+	"github.com/rainu/go-command-chain"
 	"nephrostatus/utils"
+
 	"github.com/getlantern/systray"
 )
 
@@ -40,33 +43,42 @@ func onReady() {
 		for {
 			select {
 			case <-mStopApi.ClickedCh:
-				nValue, err := exec.Command("docker", "stop", "selfweb").Output()
+				apiStopOutput := &bytes.Buffer{}
+
+				err := cmdchain.Builder().
+					Join("docker", "ps").
+					Join("grep", "nephroflow/server").
+					Join("awk", "{print $1}").
+					Join("xargs", "-r", "docker", "stop").
+					Finalize().WithOutput(apiStopOutput).Run()
 
 				if err != nil {
 					fmt.Printf("error %s", err.Error())
-					fmt.Printf("%s", nValue)
+					fmt.Printf("%s", apiStopOutput)
 				}
+
+				fmt.Printf("%s", apiStopOutput)
 			case <-mStartApi.ClickedCh:
-				_, err := exec.Command("tmux", "send-keys",  "-t", "nipro:api.1", "run_api.sh -- rails s\n").Output()
+				_, err := exec.Command("tmux", "send-keys", "-t", "nipro:api.1", "run_api.sh -- rails s\n").Output()
 
 				if err != nil {
 					fmt.Printf("error %s", err)
 				}
 			case <-mStopManager.ClickedCh:
-				_, err := exec.Command("tmux", "send-keys",  "-t", "nipro:manager.1", "^C").Output()
+				_, err := exec.Command("tmux", "send-keys", "-t", "nipro:manager.1", "^C").Output()
 
 				if err != nil {
 					fmt.Printf("error %s", err)
 				}
 			case <-mStartManager.ClickedCh:
-				_, err := exec.Command("tmux", "send-keys",  "-t", "nipro:manager.1", "yarn dev\n").Output()
+				_, err := exec.Command("tmux", "send-keys", "-t", "nipro:manager.1", "yarn dev\n").Output()
 
 				if err != nil {
 					fmt.Printf("error %s", err)
 				}
 			case <-mOpenManager.ClickedCh:
 				tabOutput := utils.GetNephroflowTabId()
-				
+
 				_, errActTab := exec.Command("chrome-cli", "activate", "-t", tabOutput).Output()
 				if errActTab != nil {
 					panic(errActTab)
@@ -89,16 +101,16 @@ func onReady() {
 		for {
 			currentNephroData = nephrodata.GetNephroData()
 			updateTray(currentNephroData)
-			time.Sleep(time.Millisecond * 500)
+			time.Sleep(time.Millisecond * 5000)
 		}
 	}()
 }
 
 func updateTray(d *nephrodata.NephroData) {
 	title := ""
-	if d.ApiStatus {
-		title = title + "API ✅"
-	} else { 
+	if d.ApiStatus.Online {
+		title = title + "API: " + d.ApiStatus.Version + " ✅"
+	} else {
 		title = title + "API ⛔"
 	}
 
@@ -106,7 +118,7 @@ func updateTray(d *nephrodata.NephroData) {
 
 	if d.ManagerStatus {
 		title = title + "Manager ✅"
-	} else { 
+	} else {
 		title = title + "Manager ⛔"
 	}
 
